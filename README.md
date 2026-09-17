@@ -34,7 +34,7 @@ saved, so you can correct them against the packet.
 Where a product lists nutrition per serving, that serving is used; otherwise figures are per 100 g.
 Anything not in the database you add by hand, once, and it stays in your library.
 
-Scanning needs a camera and an HTTPS page, which GitHub Pages provides.
+Scanning needs a camera and an HTTPS page, which Vercel provides.
 
 ## Running it
 
@@ -45,11 +45,10 @@ npm run dev
 
 Then open the URL it prints. `npm run build` produces a static site in `dist/`.
 
-Pushing to `main` deploys it to GitHub Pages at `https://cathanoh1.github.io/gym-app/` via
-`.github/workflows/deploy.yml`. The app uses hash routing and a `/gym-app/` base path, so it
-works on Pages with no redirect rules.
+Vercel builds and publishes every push to `main`. It is a static bundle using hash routing, so it
+needs no server, redirect rules or environment variables.
 
-On a phone, open the hosted URL and add it to your home screen — it installs as a standalone app.
+On a phone, open the deployed URL and add it to your home screen — it installs as a standalone app.
 
 ## Your data
 
