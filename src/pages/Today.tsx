@@ -8,9 +8,10 @@ import { SetChip } from '../components/SetChip'
 import { SettingsSheet } from '../components/SettingsSheet'
 import { ButtonLink, Card, EmptyState, IconButton, Meter, PageHeader, SectionTitle } from '../components/ui'
 import { db } from '../db'
-import { todayKey } from '../lib/dates'
+import { dayLabel, todayKey } from '../lib/dates'
 import { totalMacros } from '../lib/nutrition'
 import { useSettings } from '../lib/settings'
+import { changeOver, formatDelta, toDisplayWeight } from '../lib/weight'
 import { entryVolume, formatVolume, heaviestWeight } from '../lib/workouts'
 
 export function Today() {
@@ -22,6 +23,7 @@ export function Today() {
   const exercises = useLiveQuery(() => db.exercises.toArray(), [])
   const foodEntries = useLiveQuery(() => db.foodLogEntries.where('date').equals(date).toArray(), [date])
   const foods = useLiveQuery(() => db.foods.toArray(), [])
+  const weights = useLiveQuery(() => db.weightEntries.orderBy('date').toArray(), [])
 
   const entries = workoutEntries ?? []
   const exerciseNames = new Map((exercises ?? []).map((exercise) => [exercise.id, exercise.name]))
@@ -29,6 +31,8 @@ export function Today() {
   const totals = totalMacros(foodEntries ?? [], foodsById)
   const dayVolume = entries.reduce((sum, entry) => sum + entryVolume(entry), 0)
   const remaining = settings.calorieGoal - totals.calories
+  const latestWeight = (weights ?? []).at(-1)
+  const weekChange = changeOver(weights ?? [], 7)
 
   return (
     <>
@@ -117,6 +121,35 @@ export function Today() {
           </>
         )}
       </Card>
+
+      <Link
+        to="/weight"
+        className="mt-5 flex items-center justify-between gap-3 rounded-[3px] border-2 border-iron bg-paper p-4 transition-transform active:translate-y-px"
+      >
+        <div className="min-w-0">
+          <p className="eyebrow">Weight</p>
+          {latestWeight ? (
+            <>
+              <p className="wide font-mono text-2xl font-bold tabular-nums">
+                {toDisplayWeight(latestWeight.kg, settings.weightUnit).toFixed(1)}
+                <span className="ml-1 text-sm font-medium text-steel">{settings.weightUnit}</span>
+              </p>
+              <p className="text-xs text-steel">{dayLabel(latestWeight.date)}</p>
+            </>
+          ) : (
+            <p className="mt-0.5 font-semibold">Log your first weigh-in</p>
+          )}
+        </div>
+        {weekChange !== undefined ? (
+          <p className="shrink-0 text-right text-sm text-steel">
+            7 days
+            <br />
+            <span className="font-mono text-base font-medium tabular-nums text-iron">
+              {formatDelta(weekChange, settings.weightUnit)}
+            </span>
+          </p>
+        ) : null}
+      </Link>
 
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
