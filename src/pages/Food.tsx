@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, ScanBarcode, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { BarcodeScanner } from '../components/BarcodeScanner'
 import { DayNav } from '../components/DayNav'
 import {
   Button,
@@ -20,6 +21,7 @@ import {
 import { db, MEALS, type Food as FoodItem, type Meal, type Settings } from '../db'
 import { todayKey, type DateKey } from '../lib/dates'
 import { formatServings, scaleFood, totalMacros, type Macros } from '../lib/nutrition'
+import { lookupBarcode, type ProductNutrition } from '../lib/openFoodFacts'
 import { useSettings } from '../lib/settings'
 
 const MEAL_LABELS: Record<Meal, string> = {
@@ -160,12 +162,21 @@ function Diary({
   )
 }
 
+type ScanState =
+  | { status: 'idle' }
+  | { status: 'looking'; barcode: string }
+  | { status: 'found'; barcode: string; product: ProductNutrition }
+  | { status: 'missing'; barcode: string }
+  | { status: 'failed'; barcode: string }
+
 function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClose: () => void }) {
   const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<FoodItem | null>(null)
   const [servings, setServings] = useState('1')
   const [creating, setCreating] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scanned, setScanned] = useState<ScanState>({ status: 'idle' })
 
   const term = query.trim().toLowerCase()
   const matches = foods.filter((food) => food.name.toLowerCase().includes(term))
@@ -181,6 +192,72 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClos
       createdAt: Date.now(),
     })
     onClose()
+  }
+
+  async function handleBarcode(barcode: string) {
+    setScanning(false)
+    const known = await db.foods.where('barcode').equals(barcode).first()
+    if (known) {
+      setSelected(known)
+      setServings('1')
+      return
+    }
+    setScanned({ status: 'looking', barcode })
+    try {
+      const product = await lookupBarcode(barcode)
+      setScanned(product ? { status: 'found', barcode, product } : { status: 'missing', barcode })
+    } catch {
+      setScanned({ status: 'failed', barcode })
+    }
+  }
+
+  if (scanning) {
+    return (
+      <BarcodeScanner onDetected={(code) => void handleBarcode(code)} onClose={() => setScanning(false)} />
+    )
+  }
+
+  if (scanned.status === 'looking') {
+    return (
+      <Sheet open title="Looking it up" onClose={onClose}>
+        <p className="text-sm text-steel">
+          Checking Open Food Facts for <span className="font-mono tabular-nums">{scanned.barcode}</span>…
+        </p>
+      </Sheet>
+    )
+  }
+
+  if (scanned.status !== 'idle') {
+    const title =
+      scanned.status === 'found'
+        ? 'Check the details'
+        : scanned.status === 'missing'
+          ? 'Not in the database'
+          : 'Lookup failed'
+    const message =
+      scanned.status === 'found'
+        ? 'Open Food Facts is filled in by the public, so check these against the packet before saving.'
+        : scanned.status === 'missing'
+          ? 'That barcode is not in Open Food Facts. Enter it from the packet and it will be remembered next time.'
+          : 'Open Food Facts could not be reached. Enter it from the packet, or try the scan again.'
+
+    return (
+      <Sheet open title={title} onClose={onClose}>
+        <p className="mb-3 text-sm text-steel">{message}</p>
+        <FoodForm
+          barcode={scanned.barcode}
+          initial={scanned.status === 'found' ? scanned.product : undefined}
+          onSaved={(food) => {
+            setScanned({ status: 'idle' })
+            setSelected(food)
+            setServings('1')
+          }}
+        />
+        <Button variant="quiet" className="mt-3 w-full" onClick={() => setScanned({ status: 'idle' })}>
+          Back to list
+        </Button>
+      </Sheet>
+    )
   }
 
   if (creating) {
@@ -269,12 +346,17 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClos
       </ul>
 
       {matches.length === 0 ? (
-        <p className="mt-3 text-sm text-steel">Nothing matches “{query}”. Add it to your foods instead.</p>
+        <p className="mt-3 text-sm text-steel">Nothing matches “{query}”. Scan it or add it by hand.</p>
       ) : null}
 
-      <Button variant="secondary" className="mt-3 w-full" onClick={() => setCreating(true)}>
-        <Plus size={16} /> New food
-      </Button>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button variant="secondary" onClick={() => setScanning(true)}>
+          <ScanBarcode size={16} /> Scan
+        </Button>
+        <Button variant="secondary" onClick={() => setCreating(true)}>
+          <Plus size={16} /> New food
+        </Button>
+      </div>
     </Sheet>
   )
 }
@@ -356,17 +438,19 @@ function FoodLibrary() {
 
 function FoodForm({
   initial,
+  barcode,
   onSaved,
 }: {
-  initial?: FoodItem
+  initial?: Partial<FoodItem> & { id?: number }
+  barcode?: string
   onSaved: (food: FoodItem) => void
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [servingLabel, setServingLabel] = useState(initial?.servingLabel ?? '100 g')
-  const [calories, setCalories] = useState(initial ? String(initial.calories) : '')
-  const [protein, setProtein] = useState(initial ? String(initial.protein) : '')
-  const [carbs, setCarbs] = useState(initial ? String(initial.carbs) : '')
-  const [fat, setFat] = useState(initial ? String(initial.fat) : '')
+  const [calories, setCalories] = useState(initial?.calories?.toString() ?? '')
+  const [protein, setProtein] = useState(initial?.protein?.toString() ?? '')
+  const [carbs, setCarbs] = useState(initial?.carbs?.toString() ?? '')
+  const [fat, setFat] = useState(initial?.fat?.toString() ?? '')
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -379,11 +463,14 @@ function FoodForm({
       protein: parseNumber(protein),
       carbs: parseNumber(carbs),
       fat: parseNumber(fat),
+      barcode: barcode ?? initial?.barcode,
     }
 
-    if (initial) {
-      await db.foods.update(initial.id, values)
-      onSaved({ ...initial, ...values })
+    if (initial?.id !== undefined) {
+      const id = initial.id
+      await db.foods.update(id, values)
+      const updated = await db.foods.get(id)
+      if (updated) onSaved(updated)
       return
     }
 
@@ -420,7 +507,7 @@ function FoodForm({
         </Field>
       </div>
       <Button type="submit" disabled={!name.trim()}>
-        {initial ? 'Save changes' : 'Create food'}
+        {initial?.id === undefined ? 'Create food' : 'Save changes'}
       </Button>
     </form>
   )

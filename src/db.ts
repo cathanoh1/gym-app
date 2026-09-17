@@ -47,6 +47,7 @@ export interface Food {
   protein: number
   carbs: number
   fat: number
+  barcode?: string
   createdAt: number
 }
 
@@ -88,6 +89,11 @@ db.version(1).stores({
   foods: '++id, name',
   foodLogEntries: '++id, foodId, date, [date+meal]',
   settings: 'id',
+})
+
+// Scanned products remember their barcode, so a second scan skips the lookup.
+db.version(2).stores({
+  foods: '++id, name, barcode',
 })
 
 const STARTER_EXERCISES: Array<[string, string]> = [
