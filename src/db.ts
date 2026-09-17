@@ -60,6 +60,14 @@ export interface FoodLogEntry {
   createdAt: number
 }
 
+export interface WeightEntry {
+  id: number
+  date: DateKey
+  /** Always kilograms, converted on the way in and out, so a unit change cannot bend the trend. */
+  kg: number
+  createdAt: number
+}
+
 export interface Settings {
   id: number
   calorieGoal: number
@@ -78,6 +86,7 @@ export const db = new Dexie('GymApp') as Dexie & {
   habitCompletions: EntityTable<HabitCompletion, 'id'>
   foods: EntityTable<Food, 'id'>
   foodLogEntries: EntityTable<FoodLogEntry, 'id'>
+  weightEntries: EntityTable<WeightEntry, 'id'>
   settings: EntityTable<Settings, 'id'>
 }
 
@@ -94,6 +103,10 @@ db.version(1).stores({
 // Scanned products remember their barcode, so a second scan skips the lookup.
 db.version(2).stores({
   foods: '++id, name, barcode',
+})
+
+db.version(3).stores({
+  weightEntries: '++id, date',
 })
 
 const STARTER_EXERCISES: Array<[string, string]> = [

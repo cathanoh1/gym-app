@@ -6,6 +6,7 @@ import './index.css'
 import { Food } from './pages/Food'
 import { Habits } from './pages/Habits'
 import { Today } from './pages/Today'
+import { Weight } from './pages/Weight'
 import { Workouts } from './pages/Workouts'
 
 createRoot(document.getElementById('root')!).render(
@@ -17,6 +18,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="lift" element={<Workouts />} />
           <Route path="food" element={<Food />} />
           <Route path="habits" element={<Habits />} />
+          <Route path="weight" element={<Weight />} />
         </Route>
       </Routes>
     </HashRouter>

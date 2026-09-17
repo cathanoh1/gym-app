@@ -1,4 +1,4 @@
-import { Apple, CalendarDays, Dumbbell, Target } from 'lucide-react'
+import { Apple, CalendarDays, Dumbbell, Scale, Target } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 
 const TABS = [
@@ -6,6 +6,7 @@ const TABS = [
   { to: '/lift', label: 'Lift', icon: Dumbbell, end: false },
   { to: '/food', label: 'Food', icon: Apple, end: false },
   { to: '/habits', label: 'Habits', icon: Target, end: false },
+  { to: '/weight', label: 'Weight', icon: Scale, end: false },
 ]
 
 export function Shell() {

@@ -22,6 +22,11 @@ totals up against your calorie, protein, carb and fat goals. Your own foods are 
 instantly; going out to the database is a deliberate tap. Anything you pull in is saved to your
 library with its barcode, so the next time it is there without a lookup.
 
+**Weight** — One weigh-in a day, with the change over the last 7 and 30 days. The chart draws
+the daily numbers as light dots under a 7-day average, because day-to-day scale noise is larger
+than the change anyone is actually looking for. Weights are stored in kilograms and converted for
+display, so switching between kg and lb never bends the trend.
+
 **Today** — One screen with the day's habit bubbles, calories left, macro progress and the
 session you've logged so far.
 
