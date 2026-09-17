@@ -16,23 +16,25 @@ from the last time you trained that exercise. Every exercise keeps its own histo
 as bubbles on Today and on the Habits tab; tap one to mark it done. Bubbles reset each day, and
 each habit tracks its streak and last seven days.
 
-**Food** — A MyFitnessPal-style diary. Scan a packet's barcode to pull its nutrition in, or build
-up a library of foods by hand, then log them to breakfast, lunch, dinner or snacks. The day totals
-up against your calorie, protein, carb and fat goals. A scanned product remembers its barcode, so
-scanning it again finds it instantly without another lookup.
+**Food** — A MyFitnessPal-style diary. Scan a packet's barcode, search by name for anything
+without one, or enter it by hand, then log it to breakfast, lunch, dinner or snacks. The day
+totals up against your calorie, protein, carb and fat goals. Your own foods are searched first and
+instantly; going out to the database is a deliberate tap. Anything you pull in is saved to your
+library with its barcode, so the next time it is there without a lookup.
 
 **Today** — One screen with the day's habit bubbles, calories left, macro progress and the
 session you've logged so far.
 
 ## Where the food data comes from
 
-Barcode lookups go to [Open Food Facts](https://world.openfoodfacts.org) — a free, open product
-database with no API key or account. It is filled in by the public, so a product may be missing,
-or have gaps or wrong values. Scanned values always land in an editable form before they are
-saved, so you can correct them against the packet.
+Barcode scans and name searches both go to [Open Food Facts](https://world.openfoodfacts.org) — a
+free, open product database with no API key or account. It is filled in by the public, so a product
+may be missing, or have gaps or wrong values. Anything it returns lands in an editable form before
+it is saved, so you can correct it against the packet.
 
 Where a product lists nutrition per serving, that serving is used; otherwise figures are per 100 g.
-Anything not in the database you add by hand, once, and it stays in your library.
+Products with no usable nutrition are left out of search results. Anything the database does not
+have you add by hand, once, and it stays in your library.
 
 Scanning needs a camera and an HTTPS page, which Vercel provides.
 

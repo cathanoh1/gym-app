@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Pencil, Plus, ScanBarcode, Trash2 } from 'lucide-react'
+import { Pencil, Plus, ScanBarcode, Search, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { DayNav } from '../components/DayNav'
@@ -21,7 +21,7 @@ import {
 import { db, MEALS, type Food as FoodItem, type Meal, type Settings } from '../db'
 import { todayKey, type DateKey } from '../lib/dates'
 import { formatServings, scaleFood, totalMacros, type Macros } from '../lib/nutrition'
-import { lookupBarcode, type ProductNutrition } from '../lib/openFoodFacts'
+import { lookupBarcode, searchProducts, type ProductNutrition } from '../lib/openFoodFacts'
 import { useSettings } from '../lib/settings'
 
 const MEAL_LABELS: Record<Meal, string> = {
@@ -71,11 +71,19 @@ function Diary({
   onDateChange: (date: DateKey) => void
   goals: Settings
 }) {
-  const entries = useLiveQuery(() => db.foodLogEntries.where('date').equals(date).toArray(), [date]) ?? []
-  const foods = useLiveQuery(() => db.foods.toArray(), []) ?? []
+  // One query so entries and the foods they name always arrive in the same snapshot;
+  // querying them separately leaves a just-added item unrenderable for a beat.
+  const diary = useLiveQuery(
+    async () => ({
+      entries: await db.foodLogEntries.where('date').equals(date).toArray(),
+      foods: await db.foods.toArray(),
+    }),
+    [date],
+  )
   const [pickerMeal, setPickerMeal] = useState<Meal | null>(null)
 
-  const foodsById = new Map(foods.map((food) => [food.id, food]))
+  const entries = diary?.entries ?? []
+  const foodsById = new Map((diary?.foods ?? []).map((food) => [food.id, food]))
   const totals = totalMacros(entries, foodsById)
   const remaining = goals.calorieGoal - totals.calories
 
@@ -162,10 +170,16 @@ function Diary({
   )
 }
 
+type RemoteState =
+  | { status: 'idle' }
+  | { status: 'searching' }
+  | { status: 'done'; results: ProductNutrition[] }
+  | { status: 'failed' }
+
 type ScanState =
   | { status: 'idle' }
   | { status: 'looking'; barcode: string }
-  | { status: 'found'; barcode: string; product: ProductNutrition }
+  | { status: 'found'; barcode?: string; product: ProductNutrition }
   | { status: 'missing'; barcode: string }
   | { status: 'failed'; barcode: string }
 
@@ -177,6 +191,7 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClos
   const [creating, setCreating] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scanned, setScanned] = useState<ScanState>({ status: 'idle' })
+  const [remote, setRemote] = useState<RemoteState>({ status: 'idle' })
 
   const term = query.trim().toLowerCase()
   const matches = foods.filter((food) => food.name.toLowerCase().includes(term))
@@ -208,6 +223,17 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClos
       setScanned(product ? { status: 'found', barcode, product } : { status: 'missing', barcode })
     } catch {
       setScanned({ status: 'failed', barcode })
+    }
+  }
+
+  async function searchOpenFoodFacts() {
+    const searchTerm = query.trim()
+    if (!searchTerm) return
+    setRemote({ status: 'searching' })
+    try {
+      setRemote({ status: 'done', results: await searchProducts(searchTerm) })
+    } catch {
+      setRemote({ status: 'failed' })
     }
   }
 
@@ -317,7 +343,10 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClos
     <Sheet open title={`Add to ${MEAL_LABELS[meal].toLowerCase()}`} onClose={onClose}>
       <TextInput
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setRemote({ status: 'idle' })
+        }}
         placeholder="Search your foods"
         aria-label="Search your foods"
       />
@@ -346,15 +375,65 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal; date: DateKey; onClos
       </ul>
 
       {matches.length === 0 ? (
-        <p className="mt-3 text-sm text-steel">Nothing matches “{query}”. Scan it or add it by hand.</p>
+        <p className="mt-3 text-sm text-steel">Nothing in your foods matches “{query}”.</p>
       ) : null}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      {remote.status === 'searching' ? (
+        <p className="mt-3 text-sm text-steel">Searching Open Food Facts…</p>
+      ) : null}
+
+      {remote.status === 'failed' ? (
+        <p className="mt-3 text-sm text-steel">
+          Open Food Facts could not be reached. Try again, or add it by hand.
+        </p>
+      ) : null}
+
+      {remote.status === 'done' ? (
+        <>
+          <div className="mt-4">
+            <SectionTitle>From Open Food Facts</SectionTitle>
+          </div>
+          {remote.results.length === 0 ? (
+            <p className="text-sm text-steel">No matches for “{query}”. Add it by hand instead.</p>
+          ) : (
+            <ul className="grid gap-2">
+              {remote.results.map((product, index) => (
+                <li key={product.barcode ?? index}>
+                  <button
+                    type="button"
+                    onClick={() => setScanned({ status: 'found', barcode: product.barcode, product })}
+                    className="flex w-full items-center justify-between gap-3 rounded-[3px] border-2 border-iron bg-paper px-3 py-2.5 text-left active:translate-y-px"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">{product.name}</span>
+                      <span className="font-mono text-xs tabular-nums text-steel">
+                        {product.servingLabel} · {macroLine(product)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono text-sm tabular-nums">
+                      {Math.round(product.calories)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
         <Button variant="secondary" onClick={() => setScanning(true)}>
           <ScanBarcode size={16} /> Scan
         </Button>
+        <Button
+          variant="secondary"
+          disabled={!query.trim() || remote.status === 'searching'}
+          onClick={() => void searchOpenFoodFacts()}
+        >
+          <Search size={16} /> Search
+        </Button>
         <Button variant="secondary" onClick={() => setCreating(true)}>
-          <Plus size={16} /> New food
+          <Plus size={16} /> New
         </Button>
       </div>
     </Sheet>
