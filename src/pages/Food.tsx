@@ -3,6 +3,7 @@ import { Pencil, Plus, ScanBarcode, Search, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { DayNav } from '../components/DayNav'
+import { SettingsSheet } from '../components/SettingsSheet'
 import {
   Button,
   Card,
@@ -81,6 +82,7 @@ function Diary({
     [date],
   )
   const [pickerMeal, setPickerMeal] = useState<Meal | null>(null)
+  const [goalsOpen, setGoalsOpen] = useState(false)
 
   const entries = diary?.entries ?? []
   const foodsById = new Map((diary?.foods ?? []).map((food) => [food.id, food]))
@@ -110,6 +112,13 @@ function Diary({
           <Meter label="Carbs" value={totals.carbs} goal={goals.carbGoal} color="var(--color-plate-yellow)" />
           <Meter label="Fat" value={totals.fat} goal={goals.fatGoal} color="var(--color-plate-green)" />
         </div>
+        <button
+          type="button"
+          onClick={() => setGoalsOpen(true)}
+          className="mt-3 text-sm font-semibold underline underline-offset-2"
+        >
+          Edit goals
+        </button>
       </Card>
 
       <div className="grid gap-3">
@@ -166,6 +175,8 @@ function Diary({
       </div>
 
       {pickerMeal ? <FoodPicker meal={pickerMeal} date={date} onClose={() => setPickerMeal(null)} /> : null}
+
+      <SettingsSheet open={goalsOpen} onClose={() => setGoalsOpen(false)} />
     </>
   )
 }

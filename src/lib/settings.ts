@@ -1,9 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { DEFAULT_SETTINGS, db, SETTINGS_ID, type Settings } from '../db'
 
+/** Undefined only while the query is in flight, so callers can wait for real values. */
+export function useLoadedSettings(): Settings | undefined {
+  return useLiveQuery(async () => (await db.settings.get(SETTINGS_ID)) ?? DEFAULT_SETTINGS, [])
+}
+
 export function useSettings(): Settings {
-  const stored = useLiveQuery(() => db.settings.get(SETTINGS_ID), [])
-  return stored ?? DEFAULT_SETTINGS
+  return useLoadedSettings() ?? DEFAULT_SETTINGS
 }
 
 export async function saveSettings(changes: Partial<Omit<Settings, 'id'>>): Promise<void> {

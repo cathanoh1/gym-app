@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { db } from '../db'
+import { useRef, useState } from 'react'
+import { db, type Settings } from '../db'
 import { todayKey } from '../lib/dates'
 import { caloriesFromMacros } from '../lib/nutrition'
-import { saveSettings, useSettings } from '../lib/settings'
+import { saveSettings, useLoadedSettings } from '../lib/settings'
 import { Button, Field, NumberInput, parseNumber, Segmented, Sheet } from './ui'
 
 async function exportBackup(): Promise<void> {
@@ -36,22 +36,20 @@ async function importBackup(file: File): Promise<void> {
 }
 
 export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const settings = useSettings()
-  const fileInput = useRef<HTMLInputElement>(null)
-  const [calories, setCalories] = useState('')
-  const [protein, setProtein] = useState('')
-  const [carbs, setCarbs] = useState('')
-  const [fat, setFat] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const settings = useLoadedSettings()
+  // The form mounts fresh each time it opens, so it starts from stored values without an
+  // effect that would also wipe the save confirmation, and your typing, on every change.
+  if (!open || !settings) return null
+  return <SettingsForm settings={settings} onClose={onClose} />
+}
 
-  useEffect(() => {
-    if (!open) return
-    setCalories(String(settings.calorieGoal))
-    setProtein(String(settings.proteinGoal))
-    setCarbs(String(settings.carbGoal))
-    setFat(String(settings.fatGoal))
-    setMessage(null)
-  }, [open, settings])
+function SettingsForm({ settings, onClose }: { settings: Settings; onClose: () => void }) {
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [calories, setCalories] = useState(String(settings.calorieGoal))
+  const [protein, setProtein] = useState(String(settings.proteinGoal))
+  const [carbs, setCarbs] = useState(String(settings.carbGoal))
+  const [fat, setFat] = useState(String(settings.fatGoal))
+  const [message, setMessage] = useState<{ where: 'goals' | 'data'; text: string } | null>(null)
 
   const macroCalories = caloriesFromMacros(parseNumber(protein), parseNumber(carbs), parseNumber(fat))
 
@@ -62,15 +60,18 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
       carbGoal: Math.round(parseNumber(carbs, settings.carbGoal)),
       fatGoal: Math.round(parseNumber(fat, settings.fatGoal)),
     })
-    setMessage('Goals saved.')
+    setMessage({ where: 'goals', text: 'Goals saved.' })
   }
 
   async function handleImport(file: File) {
     try {
       await importBackup(file)
-      setMessage('Backup restored.')
+      setMessage({ where: 'data', text: 'Backup restored.' })
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'That file could not be read.')
+      setMessage({
+        where: 'data',
+        text: error instanceof Error ? error.message : 'That file could not be read.',
+      })
     }
   }
 
@@ -81,7 +82,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
-    <Sheet open={open} title="Settings" onClose={onClose}>
+    <Sheet open title="Settings" onClose={onClose}>
       <div className="grid gap-5">
         <div>
           <h3 className="eyebrow mb-2">Daily goals</h3>
@@ -106,6 +107,9 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
           <Button className="mt-3 w-full" onClick={() => void handleSaveGoals()}>
             Save goals
           </Button>
+          {message?.where === 'goals' ? (
+            <p className="mt-2 text-sm font-semibold">{message.text}</p>
+          ) : null}
         </div>
 
         <div>
@@ -148,9 +152,10 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
               event.target.value = ''
             }}
           />
+          {message?.where === 'data' ? (
+            <p className="mt-2 text-sm font-semibold">{message.text}</p>
+          ) : null}
         </div>
-
-        {message ? <p className="text-sm font-semibold">{message}</p> : null}
       </div>
     </Sheet>
   )

@@ -233,7 +233,8 @@ export function Sheet({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button aria-label="Close" className="absolute inset-0 bg-iron/50" onClick={onClose} />
+      {/* Decorative: Escape and the labelled close button are the accessible ways out. */}
+      <div aria-hidden className="absolute inset-0 bg-iron/50" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
